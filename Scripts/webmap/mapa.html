@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Visualizador de GeoJSON - FOSSAS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html {
+      margin: 0;
+      height: 100%;
+    }
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+    .leaflet-popup-content {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // Inicializa o mapa
+    var map = L.map('map').setView([-27.61687, -48.58839], 14);
+
+    // Camadas base
+    var ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    });
+
+    // Controles de camadas
+    var baseMaps = {
+      "Ruas": ruas,
+      "Satélite": satelite
+    };
+    L.control.layers(baseMaps).addTo(map);
+
+    // URL do seu GeoJSON
+    var geojsonUrl = 'https://script.google.com/macros/s/AKfycbwl7flvEUD7vbCwQg3d4GtfJNyefTcGBMFq7tRvUTCjAHZkhi07G8Gz1kSVMOZspj4/exec?action=getAll';
+
+    // Carrega o GeoJSON
+    fetch(geojsonUrl)
+      .then(response => response.json())
+      .then(data => {
+        L.geoJSON(data, {
+          onEachFeature: function (feature, layer) {
+            const props = feature.properties;
+            layer.bindPopup(`
+              <strong>${props.NOME || 'Sem nome'}</strong><br/>
+              Tipo: ${props.tipo || '-'}<br/>
+              Bairro: ${props.bairro || '-'}<br/>
+              Cidade: ${props.cidade || '-'}<br/>
+              Tipo Edificação: ${props.TIPO_EDIF || '-'}
+            `);
+          },
+          pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+              radius: 6,
+              fillColor: "#0074D9",
+              color: "#fff",
+              weight: 1,
+              opacity: 1,
+              fillOpacity: 0.8
+            });
+          }
+        }).addTo(map);
+      })
+      .catch(error => {
+        console.error('Erro ao carregar GeoJSON:', error);
+      });
+  </script>
+</body>
+</html>
