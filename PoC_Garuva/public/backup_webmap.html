@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Visualizador de GeoJSON - Camadas Locais</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html { margin: 0; height: 100%; }
+    #map { width: 100%; height: 100vh; }
+    .leaflet-popup-content { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([-26.025, -48.850], 11); // Garuva
+
+    // Camadas base
+    const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    });
+
+    const baseMaps = {
+      "Ruas": ruas,
+      "Satélite": satelite
+    };
+
+    // Camadas GeoJSON (vazias inicialmente)
+    const garuvaLayer = L.layerGroup();
+    const gridLayer = L.layerGroup();
+
+    const overlayMaps = {
+      "Garuva": garuvaLayer,
+      "Grid 1km² (SIRGAS 4674)": gridLayer
+    };
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+    // Lista para armazenar os grids selecionados
+    let selectedLayers = [];
+
+    // Função para carregar GeoJSON local e adicionar na camada especificada
+    function loadGeoJSON(url, targetLayer, style = {}) {
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          const geojson = L.geoJSON(data, {
+            style: style,
+            onEachFeature: function (feature, layer) {
+              // Comentado para não exibir pop-up
+              // if (feature.properties) {
+              //   let content = '';
+              //   for (const key in feature.properties) {
+              //     content += `<strong>${key}</strong>: ${feature.properties[key]}<br/>`;
+              //   }
+              //   layer.bindPopup(content);
+              // }
+
+              // Evento de clique para selecionar/deselecionar o hexágono
+              layer.on('click', function() {
+                // Verificar se a camada já está na lista de selecionados
+                const index = selectedLayers.indexOf(layer);
+
+                if (index > -1) {
+                  // Se já estiver selecionado, desmarcar
+                  selectedLayers.splice(index, 1);
+                  layer.setStyle({
+                    fillColor: "#0074D9", // Cor original de preenchimento
+                    color: "#0074D9", // Cor da borda original
+                    weight: 0.5, // Largura da linha original
+                    opacity: 1, // Opacidade total
+                    fillOpacity: 0.1 // Preenchimento original
+                  });
+                } else {
+                  // Se não estiver selecionado, adicionar à lista
+                  selectedLayers.push(layer);
+                  layer.setStyle({
+                    fillColor: "#FF4136", // Cor de preenchimento ao selecionar (vermelho)
+                    color: "#FF4136", // Cor da borda ao selecionar
+                    weight: 2, // Borda mais grossa
+                    opacity: 1, // Opacidade total
+                    fillOpacity: 0.5 // Preenchimento semi-transparente
+                  });
+                }
+              });
+            },
+            pointToLayer: function (feature, latlng) {
+              return L.circleMarker(latlng, {
+                radius: 5,
+                fillColor: "#FF4136",
+                color: "#fff",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+              });
+            }
+          });
+          geojson.addTo(targetLayer);
+        })
+        .catch(err => console.error(`Erro ao carregar ${url}:`, err));
+    }
+
+    // Carregando os arquivos GeoJSON da pasta 'geojson/'
+    loadGeoJSON('geojson/garuva.geojson', garuvaLayer, {
+        color: "#2ECC40",    // Cor da linha (verde)
+        weight: 1,           // Linha fina
+        opacity: 1,        // Transparência da linha
+        fillOpacity: 0.1    // Transparência do preenchimento (se tiver polígonos)
+      });
+      
+    loadGeoJSON('geojson/grid_4674_1km2.geojson', gridLayer, {
+        color: "#0074D9",    // Azul
+        weight: 0.5,         // Linha ainda mais fina
+        dashArray: '3',      // Linhas tracejadas (opcional)
+        opacity: 1,
+        fillOpacity: 0.1
+      });
+  </script>
+</body>
+</html>

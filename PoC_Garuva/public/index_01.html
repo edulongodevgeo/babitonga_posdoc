@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Visualizador de GeoJSON - Camadas Locais</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html { margin: 0; height: 100%; }
+    #map { width: 100%; height: 100vh; }
+    .leaflet-popup-content { font-size: 14px; }
+    #form-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 40vh;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 1000;
+      overflow-y: auto;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+    }
+    .form-field { margin-bottom: 15px; }
+    .form-field label { display: block; margin-bottom: 5px; font-weight: bold; }
+    .form-field input, .form-field textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+    button { background: #0078D4; color: white; border: none; padding: 10px 15px; cursor: pointer; width: 100%; }
+    button:hover { background: #005a9e; }
+    #selected-grids { margin: 10px 0; font-size: 14px; }
+    #status-message { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="form-container">
+    <h2>Formulário de Coleta</h2>
+    <form id="data-form" action="https://script.google.com/macros/s/AKfycbxCOJEu4BEGpRkswn4CnLAm19Yr7tlCjgpLsFHanjhVkecqsLg1mIh7L-J7RiHcymVn/exec" method="POST" target="hidden-iframe">
+      <input type="hidden" name="resposta01" id="resposta01-input">
+      <input type="hidden" name="resposta02" id="resposta02-input">
+      <input type="hidden" name="resposta03" id="resposta03-input">
+      <input type="hidden" name="id_grid" id="id-grid-input">
+      
+      <div class="form-field">
+        <label for="resposta01">Pergunta 01 (obrigatório)</label>
+        <input type="text" id="resposta01" required>
+      </div>
+      
+      <div class="form-field">
+        <label for="resposta02">Pergunta 02</label>
+        <input type="text" id="resposta02">
+      </div>
+      
+      <div class="form-field">
+        <label for="resposta03">Pergunta 03</label>
+        <input type="text" id="resposta03">
+      </div>
+      
+      <div id="selected-grids">
+        Grids selecionados: <span id="selected-count">0</span>
+      </div>
+      
+      <button type="submit">Enviar Dados</button>
+    </form>
+    <div id="status-message"></div>
+    <iframe name="hidden-iframe" style="display:none;"></iframe>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([-26.025, -48.850], 11);
+    
+    const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    });
+
+    const baseMaps = { "Ruas": ruas, "Satélite": satelite };
+    const garuvaLayer = L.layerGroup();
+    const gridLayer = L.layerGroup();
+    const overlayMaps = { "Garuva": garuvaLayer, "Grid 1km²": gridLayer };
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+    let selectedLayers = [];
+
+    function updateSelectedCount() {
+      document.getElementById('selected-count').textContent = selectedLayers.length;
+    }
+
+    function showStatus(message, type) {
+      const statusElement = document.getElementById('status-message');
+      statusElement.textContent = message;
+      statusElement.className = type;
+      statusElement.style.display = 'block';
+      setTimeout(() => statusElement.style.display = 'none', 5000);
+    }
+
+    function clearSelection() {
+      selectedLayers.forEach(layer => layer.setStyle({
+        fillColor: "#0074D9",
+        color: "#0074D9",
+        weight: 0.5,
+        fillOpacity: 0.1
+      }));
+      selectedLayers = [];
+      updateSelectedCount();
+    }
+
+    function loadGeoJSON(url, targetLayer, style = {}) {
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          L.geoJSON(data, {
+            style: style,
+            onEachFeature: function(feature, layer) {
+              layer.on('click', function() {
+                const index = selectedLayers.indexOf(layer);
+                if (index > -1) {
+                  selectedLayers.splice(index, 1);
+                  layer.setStyle(style);
+                } else {
+                  selectedLayers.push(layer);
+                  layer.setStyle({
+                    fillColor: "#FF4136",
+                    color: "#FF4136",
+                    weight: 2,
+                    fillOpacity: 0.5
+                  });
+                }
+                updateSelectedCount();
+              });
+            }
+          }).addTo(targetLayer);
+        })
+        .catch(err => console.error(`Erro ao carregar ${url}:`, err));
+    }
+
+    loadGeoJSON('geojson/garuva.geojson', garuvaLayer, {
+      color: "#2ECC40",
+      weight: 1,
+      fillOpacity: 0.1
+    });
+    
+    loadGeoJSON('geojson/grid_4674_1km2.geojson', gridLayer, {
+      color: "#0074D9",
+      weight: 0.5,
+      dashArray: '3',
+      fillOpacity: 0.1
+    });
+
+    document.getElementById('data-form').addEventListener('submit', function(e) {
+      document.getElementById('resposta01-input').value = document.getElementById('resposta01').value;
+      document.getElementById('resposta02-input').value = document.getElementById('resposta02').value || '';
+      document.getElementById('resposta03-input').value = document.getElementById('resposta03').value || '';
+      document.getElementById('id-grid-input').value = selectedLayers.map(layer => layer.feature.properties.id).join(',');
+      showStatus('Enviando dados...', 'success');
+    });
+
+    document.querySelector('iframe[name="hidden-iframe"]').onload = function() {
+      try {
+        const iframeDoc = this.contentDocument || this.contentWindow.document;
+        const responseText = iframeDoc.body.textContent || iframeDoc.body.innerText;
+        if (responseText.includes('success')) {
+          showStatus('Dados enviados com sucesso!', 'success');
+          document.getElementById('data-form').reset();
+          clearSelection();
+        } else {
+          showStatus('Erro ao enviar dados', 'error');
+        }
+      } catch (e) {
+        showStatus('Dados enviados (verifique a planilha)', 'success');
+        document.getElementById('data-form').reset();
+        clearSelection();
+      }
+    };
+  </script>
+</body>
+</html>

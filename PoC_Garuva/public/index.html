@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Mapeamento Coletivo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #map {
+      width: 100%;
+      height: 35vh;
+    }
+    #form-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 65vh;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 1000;
+      overflow-y: auto;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+      display: none;
+    }
+    .form-field {
+      margin-bottom: 15px;
+    }
+    .form-field label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .form-field input, .form-field select {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      background: #0078D4;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      width: 100%;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #005a9e;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    #selected-grids {
+      margin: 10px 0;
+      padding: 10px;
+      background: #e9f7fe;
+      border-radius: 4px;
+    }
+    #status-message {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    /* Modal de Boas-Vindas */
+    #welcome-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 2000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 500px;
+      text-align: center;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .modal-content h2 {
+      color: #0078D4;
+      margin-bottom: 20px;
+    }
+    #start-mapping-btn {
+      background: #0078D4;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: background 0.3s;
+    }
+    #start-mapping-btn:hover {
+      background: #005a9e;
+    }
+    .required-field::after {
+      content: " *";
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <!-- Modal de Boas-Vindas -->
+  <div id="welcome-modal">
+    <div class="modal-content">
+      <h2>Bem-vindo ao Mapeamento Coletivo</h2>
+      <p>Clique no botão abaixo para iniciar o processo de mapeamento participativo:</p>
+      <button id="start-mapping-btn">Iniciar Mapeamento</button>
+    </div>
+  </div>
+
+  <!-- Mapa e Formulário (inicialmente oculto) -->
+  <div id="map"></div>
+  
+  <div id="form-container">
+
+    <h2>Formulário de Coleta</h2>
+    <form id="data-form" method="POST" action="https://script.google.com/macros/s/AKfycbxXDOlTc7XQbc1eJLpy9_O2xDeRpNZzG4PXzf_hciyT7aCA1m639EpcdWcZE21LmPwE/exec" target="hidden-iframe">
+      <input type="hidden" name="resposta01" id="resposta01-input">
+      <input type="hidden" name="resposta02" id="resposta02-input">
+      <input type="hidden" name="resposta03" id="resposta03-input">
+      <input type="hidden" name="id_grid" id="id-grid-input">
+      <input type="hidden" name="dimensao" id="dimensao-input">
+      
+      <div class="form-field">
+        <label for="dimensao" class="required-field">Qual dimensão/categoria</label>
+        <select id="dimensao" required>
+          <option value="">Selecione...</option>
+          <option value="Ambiental">Ambiental</option>
+          <option value="Social">Social</option>
+          <option value="Política">Política</option>
+        </select>
+      </div>
+
+      <div id="selected-grids">
+        SELECIONE ACIMA NO MAPA OS GRIDS (LOCAIS) ONDE OCORREM O PROBLEMA QUE VOCÊ DESEJA RELATAR.
+      </div>
+      
+      <div class="form-field">
+        <label for="resposta01" class="required-field">Qual o problema que você gostaria de apontar para a dimensão selecionada:</label>
+        <input type="text" id="resposta01" required>
+      </div>
+      
+      <div class="form-field">
+        <label for="resposta02" class="required-field">Quais são os principais impactos decorrentes destes problemas?</label>
+        <input type="text" id="resposta02" required>
+      </div>
+      
+      <div class="form-field">
+        <label for="resposta03" class="required-field">Como você sugere que eles podem ser resolvidos?</label>
+        <input type="text" id="resposta03" required>
+      </div>
+      
+      <div id="selected-grids">
+        Grids selecionados: <span id="selected-count">0</span> <span class="required-field"></span>
+      </div>
+      
+      <button type="submit" id="submit-btn">Enviar Dados</button>
+    </form>
+    
+    <div id="status-message"></div>
+    <iframe name="hidden-iframe" id="hidden-iframe" style="display:none;"></iframe>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Inicialização do Mapa
+    const map = L.map('map').setView([-26.025, -48.850], 11);
+    const baseLayers = {
+      "Ruas": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }),
+      "Satélite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+      })
+    };
+    baseLayers.Ruas.addTo(map);
+    L.control.layers(baseLayers).addTo(map);
+
+    // Variáveis globais
+    let selectedLayers = [];
+    const gridLayer = L.layerGroup().addTo(map);
+
+    // Elementos do DOM
+    const welcomeModal = document.getElementById('welcome-modal');
+    const startMappingBtn = document.getElementById('start-mapping-btn');
+    const formContainer = document.getElementById('form-container');
+
+    // Funções de controle de tela
+    function showMappingScreen() {
+      welcomeModal.style.display = 'none';
+      formContainer.style.display = 'block';
+      map.invalidateSize(); // Garante que o mapa se redimensione corretamente
+    }
+
+    function showWelcomeModal() {
+      welcomeModal.style.display = 'flex';
+      formContainer.style.display = 'none';
+      clearSelection();
+      document.getElementById('data-form').reset();
+    }
+
+    // Evento do botão "Iniciar Mapeamento"
+    startMappingBtn.addEventListener('click', showMappingScreen);
+
+    // Funções existentes
+    function updateSelectedCount() {
+      document.getElementById('selected-count').textContent = selectedLayers.length;
+    }
+
+    function showStatus(message, type) {
+      const statusElement = document.getElementById('status-message');
+      statusElement.textContent = message;
+      statusElement.className = type;
+      statusElement.style.display = 'block';
+      setTimeout(() => statusElement.style.display = 'none', 5000);
+    }
+
+    function clearSelection() {
+      selectedLayers.forEach(layer => {
+        layer.setStyle({
+          fillColor: "#0074D9",
+          color: "#0074D9",
+          weight: 0.5,
+          fillOpacity: 0.1
+        });
+      });
+      selectedLayers = [];
+      updateSelectedCount();
+    }
+
+    function loadGeoJSON(url) {
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          L.geoJSON(data, {
+            style: {
+              color: "#0074D9",
+              weight: 0.5,
+              dashArray: '3',
+              fillOpacity: 0.1
+            },
+            onEachFeature: function(feature, layer) {
+              layer.on('click', function() {
+                const index = selectedLayers.indexOf(layer);
+                if (index > -1) {
+                  selectedLayers.splice(index, 1);
+                  layer.setStyle({
+                    fillColor: "#0074D9",
+                    color: "#0074D9",
+                    weight: 0.5,
+                    fillOpacity: 0.1
+                  });
+                } else {
+                  selectedLayers.push(layer);
+                  layer.setStyle({
+                    fillColor: "#FF4136",
+                    color: "#FF4136",
+                    weight: 2,
+                    fillOpacity: 0.5
+                  });
+                }
+                updateSelectedCount();
+              });
+            }
+          }).addTo(gridLayer);
+        })
+        .catch(err => {
+          console.error('Erro ao carregar GeoJSON:', err);
+          showStatus('Erro ao carregar os grids', 'error');
+        });
+    }
+
+    // Evento de submit do formulário
+    document.getElementById('data-form').addEventListener('submit', function(e) {
+      // Validação adicional para grids
+      if (selectedLayers.length === 0) {
+        e.preventDefault();
+        showStatus('Selecione pelo menos um grid no mapa', 'error');
+        return;
+      }
+
+      // Valida todos os campos obrigatórios
+      const camposObrigatorios = [
+        { id: 'dimensao', nome: 'Dimensão' },
+        { id: 'resposta01', nome: 'Pergunta 01' },
+        { id: 'resposta02', nome: 'Pergunta 02' },
+        { id: 'resposta03', nome: 'Pergunta 03' }
+      ];
+
+      for (const campo of camposObrigatorios) {
+        const elemento = document.getElementById(campo.id);
+        if (!elemento.value) {
+          e.preventDefault();
+          showStatus(`Preencha o campo: ${campo.nome}`, 'error');
+          elemento.focus();
+          return;
+        }
+      }
+
+      // Preenche os campos hidden
+      document.getElementById('resposta01-input').value = document.getElementById('resposta01').value;
+      document.getElementById('resposta02-input').value = document.getElementById('resposta02').value;
+      document.getElementById('resposta03-input').value = document.getElementById('resposta03').value;
+      document.getElementById('id-grid-input').value = selectedLayers.map(layer => layer.feature.properties.id).join(',');
+      document.getElementById('dimensao-input').value = document.getElementById('dimensao').value;
+      
+      showStatus('Enviando dados...', 'success');
+      document.getElementById('submit-btn').disabled = true;
+    });
+
+// Tratamento da resposta do envio
+document.getElementById('hidden-iframe').onload = function() {
+  try {
+    const iframeDoc = this.contentDocument || this.contentWindow.document;
+    const responseText = iframeDoc.body.textContent || iframeDoc.body.innerText;
+    const result = JSON.parse(responseText);
+    
+    if (result.success) {
+      showStatus(`${result.registros} registro(s) salvos com sucesso!`, 'success');
+      
+      // Reinicia completamente o formulário
+      document.getElementById('data-form').reset();
+      clearSelection();
+      
+      // Habilita o botão novamente
+      document.getElementById('submit-btn').disabled = false;
+      
+      // Opcional: Foca no primeiro campo para nova resposta
+      document.getElementById('dimensao').focus();
+      
+    } else {
+      showStatus(`Erro: ${result.error}`, 'error');
+      document.getElementById('submit-btn').disabled = false;
+    }
+  } catch (e) {
+    showStatus('Dados enviados com sucesso! Muito obrigado por cua contribuição.', 'success');
+    
+    // Reinicia mesmo se não conseguir parsear a resposta
+    document.getElementById('data-form').reset();
+    clearSelection();
+    document.getElementById('submit-btn').disabled = false;
+  }
+};
+
+    // Carrega o GeoJSON
+    loadGeoJSON('geojson/grid_4674_1km2.geojson');
+
+    // Mostra o modal inicial ao carregar a página
+    showWelcomeModal();
+  </script>
+</body>
+</html>
